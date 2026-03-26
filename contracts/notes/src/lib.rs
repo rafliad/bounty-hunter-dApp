@@ -19,8 +19,8 @@ impl NotesContract {
     // Fungsi untuk mendapatkan semua notes
     pub fn get_notes(env: Env) -> Vec<Note> {
         // 1. ambil data notes dari storage
-
-        return Vec::new(&env);
+        
+        return [];
     }
 
     // Fungsi untuk membuat note baru
@@ -28,7 +28,7 @@ impl NotesContract {
         // 1. ambil data notes dari storage
         
         // 2. Buat object note baru
-
+        
         // 3. tambahkan note baru ke notes lama
         
         // 4. simpan notes ke storage
@@ -39,12 +39,8 @@ impl NotesContract {
     // Fungsi untuk menghapus notes berdasarkan id
     pub fn delete_note(env: Env, id: u64) -> String {
         // 1. ambil data notes dari storage 
-        
-        // 2. buat variable index
 
-        // 3. cari index note yang akan dihapus menggunakan perulangan
-
-        // 4. hapus note berdasarkan index
+        // 2. cari index note yang akan dihapus menggunakan perulangan
 
         return String::from_str(&env, "Notes tidak ditemukan")
     }
@@ -54,56 +50,61 @@ mod test;
 
 
 
-// pub fn get_notes(env: Env) -> Vec<Note> {
-//     return env.storage().instance().get(&NOTE_DATA).unwrap_or(Vec::new(&env))
-// }
 
-// pub fn create_note(env: Env, title: String, content: String) -> String {
-//     // ambil notes lama (kalau ada)
-//     let mut notes: Vec<Note> = env
-//         .storage()
-//         .instance()
-//         .get(&NOTE_DATA)
-//         .unwrap_or(Vec::new(&env));
+
+
+
+
+
+
+
+
+
+/* --- CONTOH SCRIPT ---
+
+pub fn get_notes(env: Env) -> Vec<Note> {
+    // 1. ambil data notes dari storage
+    return env.storage().instance().get(&NOTE_DATA).unwrap_or(Vec::new(&env));
+}
+
+// Fungsi untuk membuat note baru
+pub fn create_note(env: Env, title: String, content: String) -> String {
+    // 1. ambil data notes dari storage
+    let mut notes: Vec<Note> = env.storage().instance().get(&NOTE_DATA).unwrap_or(Vec::new(&env));
     
-//     // Buat object note baru
-//     let note = Note {
-//         id: env.prng().gen::<u64>(),
-//         title,
-//         content,
-//         created_at: env.ledger().timestamp(),
-//     };
-
-//     // tambahkan note baru ke notes lama
-//     notes.push_back(note.clone());
+    // 2. Buat object note baru
+    let note = Note {
+        id: env.prng().gen::<u64>(),
+        title: title,
+        content: content,
+    };
     
-//     // simpan notes ke storage
-//     env.storage().instance().set(&NOTE_DATA, &notes);
-//     env.storage().instance().extend_ttl(1000, 1000);
+    // 3. tambahkan note baru ke notes lama
+    notes.push_back(note);
     
-//     return String::from_str(&env, "Notes berhasil ditambahkan");
-// }
-
-// pub fn delete_note(env: Env, id: u64) -> String {
-//     // ambil notes lama
-//     let mut notes: Vec<Note> = env.storage().instance().get(&NOTE_DATA).unwrap_or(Vec::new(&env));
+    // 4. simpan notes ke storage
+    env.storage().instance().set(&NOTE_DATA, &notes);
     
-//     let mut index: Option<u32> = None;
+    return String::from_str(&env, "Notes berhasil ditambahkan");
+}
 
-//     for i in 0..notes.len() {
-//         if notes.get(i).unwrap().id == id {
-//             index = Some(i);
-//             break;
-//         }
-//     }
+// Fungsi untuk menghapus notes berdasarkan id
+pub fn delete_note(env: Env, id: u64) -> String {
+    // 1. ambil data notes dari storage 
+    let mut notes: Vec<Note> = env.storage().instance().get(&NOTE_DATA).unwrap_or(Vec::new(&env));
 
-//     if let Some(i) = index {
-//         notes.remove(i);
-//         env.storage().instance().set(&NOTE_DATA, &notes);
-//         env.storage().instance().extend_ttl(1000, 1000);
+    // 2. cari index note yang akan dihapus menggunakan perulangan
+    for i in 0..notes.len() {
+        if notes.get(i).unwrap().id == id {
+            notes.remove(i);
 
-//         return String::from_str(&env, "Notes berhasil dihapus");
-//     }
+            env.storage().instance().set(&NOTE_DATA, &notes);
+            return String::from_str(&env, "Berhasil hapus notes");
+        }
+    }
 
-//     String::from_str(&env, "Notes tidak ditemukan")
-// }
+    return String::from_str(&env, "Notes tidak ditemukan")
+}
+
+
+*/
