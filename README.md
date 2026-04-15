@@ -13,11 +13,8 @@ Every completed task generates a **Soulbound Badge** — a permanent, non-transf
 ---
 
 ## Screenshot
-
-> 📸 _Screenshot placeholder — will be added._
-
-![Bounty Hunter Screenshot](screenshot.png)
-
+![Bounty Hunter Screenshot](frontend-ss.png)
+![Stellar lab Screenshot](screenshot.png)
 ---
 
 ## The Problem & Solution
@@ -70,7 +67,7 @@ Every completed task generates a **Soulbound Badge** — a permanent, non-transf
 | :--- | :--- |
 | Stellar Testnet | `CAOORSN3XLOHAOBT3KF6GKZR4L6P3HLKDV5F2SAZ5KLNNYQUD2XVFSTZ` |
 
-You can inspect the contract on [Stellar Expert (Testnet)](https://testnet.stellar.expert/explorer/testnet/contract/CAOORSN3XLOHAOBT3KF6GKZR4L6P3HLKDV5F2SAZ5KLNNYQUD2XVFSTZ).
+You can inspect the contract on [Stellar Expert (Testnet)](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org&passphrase=Test%20SDF%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CAOORSN3XLOHAOBT3KF6GKZR4L6P3HLKDV5F2SAZ5KLNNYQUD2XVFSTZ;;).
 
 ### Contract Functions
 
