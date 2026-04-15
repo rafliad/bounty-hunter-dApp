@@ -15,6 +15,7 @@ Every completed task generates a **Soulbound Badge** — a permanent, non-transf
 ## Screenshot
 ![Bounty Hunter Screenshot](frontend-ss.png)
 ![Stellar lab Screenshot](screenshot.png)
+![Stellar Expert Screenshot](stellar-expert.png)
 ---
 
 ## The Problem & Solution
