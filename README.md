@@ -1,118 +1,147 @@
-# Stellar Notes DApp
+# Bounty Hunter
 
-**Stellar Notes DApp** - Blockchain-Based Decentralized Note-Taking System
+**Bounty Hunter** - Platform Micro-Bounty & Reputasi Digital Terdesentralisasi
 
-## Project Description
+## Deskripsi Proyek
 
-Stellar Notes DApp is a decentralized smart contract solution built on the Stellar blockchain using Soroban SDK. It provides a secure, immutable platform for managing personal notes directly on the blockchain. The contract ensures that your data is stored transparently and is only manageable through predefined smart contract functions, eliminating reliance on centralized database providers.
+Bounty Hunter adalah platform pasar kerja mikro (micro-task) terdesentralisasi yang dibangun di atas blockchain Stellar menggunakan Soroban SDK. Platform ini menghubungkan **Issuer** (pemberi tugas) dengan **Solver** (pengembang) melalui sistem bounty yang transparan, aman, dan adil.
 
-The system allows users to create, view, and delete notes, leveraging the efficiency and security of the Stellar network. Each note is uniquely identified and stored within the contract's instance storage, ensuring data persistence and reliability.
-
-## Project Vision
-
-Our vision is to revolutionize personal productivity in the digital age by:
-
-- **Decentralizing Data**: Moving note-taking from centralized servers to a global, distributed blockchain
-- **Ensuring Ownership**: Empowering users to have complete control and ownership over their digital thoughts and information
-- **Guaranteeing Immutability**: Providing a permanent, tamper-proof record of notes that cannot be altered or deleted by third parties
-- **Enhancing Privacy**: Leveraging blockchain security to protect personal information from unauthorized access
-- **Building Trustless Systems**: Creating a platform where data integrity is guaranteed by code, not by company promises
-
-We envision a future where digital information is truly personal and sovereign, empowering individuals with complete autonomy over their digital assets.
-
-## Key Features
-
-### 1. **Simple Note Creation**
-
-- Create notes with just one function call
-- Specify title and content for each note
-- Automated ID generation for unique identification
-- Persistent storage on the Stellar blockchain
-
-### 2. **Efficient Data Retrieval**
-
-- Fetch all stored notes in a single call
-- Structured data representation for easy frontend integration
-- Quick access to your entire note collection
-- Real-time synchronization with the blockchain state
-
-### 3. **Secure Deletion**
-
-- Remove specific notes using their unique IDs
-- Permanent removal from the contract storage
-- Clean and efficient storage management
-- Immediate update of the note list after deletion
-
-### 4. **Transparency and Security**
-
-- View all note activities on the blockchain
-- Blockchain-based verification of all storage actions
-- Immutable records of note creation and deletion
-- Protected against unauthorized modifications
-
-### 5. **Stellar Network Integration**
-
-- Leverages the high speed and low cost of Stellar
-- Built using the modern Soroban Smart Contract SDK
-- Scalable architecture for growing note collections
-- Interoperable with other Stellar-based services
-
-## Contract Details
-
-- Contract Address: CBLU4IUASQ4WUMOXBFLZRSBBLILGOH33GS4LUPKFBCCCMJCDQNMF7G2M
-  ![alt text](screenshot.png)
-
-## Future Scope
-
-### Short-Term Enhancements
-
-1. **Note Encryption**: Support for end-to-end encryption of note content for enhanced privacy
-2. **Category Management**: Add tags and categories to organize notes efficiently
-3. **Rich Text Support**: Extend support beyond plain text to include Markdown and formatted content
-4. **Search Functionality**: Implement advanced search filters for large note collections
-
-### Medium-Term Development
-
-5. **Collaborative Notes**: Implement multi-signature requirements for shared or collaborative note-taking
-   - Shared access for multiple addresses
-   - Permission-based editing and viewing
-   - Version history tracking
-6. **Notification System**: Off-chain bridge to alert users of new updates or shared notes
-7. **Asset Attachment**: Capability to attach digital assets or tokens to specific notes
-8. **Inter-Contract Integration**: Allow other smart contracts to interact with and store data in the notes contract
-
-### Long-Term Vision
-
-9. **Cross-Chain Synchronization**: Extend note storage to multiple blockchain networks
-10. **Decentralized UI Hosting**: Host the frontend on IPFS or similar decentralized platforms
-11. **AI-Powered Summarization**: Optional integration with AI to help users summarize their notes
-12. **Privacy Layers**: Implement zero-knowledge proofs for completely private note content
-13. **DAO Governance**: Community-driven protocol improvements and feature prioritization
-14. **Identity Management**: Integration with decentralized identity (DID) systems for user management
-
-### Enterprise Features
-
-15. **Corporate Documentation**: Adapt the system for secure corporate record-keeping
-16. **Immutable Logging**: Create time-locked logs for audit purposes
-17. **Automated Reporting**: Automatic note triggers for periodic reporting
-18. **Multi-Language Support**: Expand accessibility with internationalization
+Setiap tugas yang diselesaikan menghasilkan **Soulbound Badge** — sertifikat digital permanen yang melekat pada identitas developer dan tidak dapat dipindahtangankan. Bounty Hunter bukan sekadar alat pembayaran, melainkan sebuah *"LinkedIn Terdesentralisasi"* berbasis bukti kerja nyata.
 
 ---
 
-## Technical Requirements
+## Masalah yang Diselesaikan
 
+| Masalah | Solusi Bounty Hunter |
+| :--- | :--- |
+| **Risiko Tidak Dibayar** — Developer ragu mengerjakan tugas kecil | **Sistem Escrow** — Dana dikunci di kontrak sejak awal |
+| **Portofolio Tidak Terverifikasi** — Sulit membuktikan kontribusi nyata | **Soulbound Badge** — Sertifikat digital permanen sebagai bukti reputasi |
+| **Proses Birokrasi Lambat** — Rekrutmen tugas kecil memakan waktu | **Akses Terbuka** — Siapa pun langsung bisa berkontribusi |
+
+---
+
+## Fitur Utama
+
+### A. Manajemen Bounty
+- **Posting Tugas** — Issuer membuat bounty dengan judul, deskripsi, kategori, dan jumlah reward
+- **Escrow Otomatis** — Dana reward dikunci dalam kontrak saat bounty dipublikasikan
+- **Jelajah Bounty** — Solver dapat melihat semua bounty yang tersedia
+
+### B. Pengajuan & Verifikasi
+- **Submit Bukti Kerja** — Solver mengirimkan tautan repositori atau dokumentasi sebagai proof
+- **Review & Approve** — Issuer meninjau hasil kerja dan memberikan persetujuan
+
+### C. Sistem Reputasi (Soulbound Badge)
+- **Mint Otomatis** — Badge diterbitkan langsung ke wallet Solver saat submission disetujui
+- **Identitas Permanen** — Badge melekat pada alamat wallet dan tidak dapat dijual atau dipindahkan
+- **Portofolio On-Chain** — Kumpulan badge menjadi rekam jejak reputasi yang terverifikasi secara transparan
+
+---
+
+## Alur Kerja
+
+```
+1. Issuer  →  create_bounty()       Posting tugas + kunci dana (escrow)
+2. Solver  →  get_bounties()        Eksplorasi daftar bounty yang tersedia
+3. Solver  →  submit_work()         Kirim bukti hasil kerja (URL repo/dokumentasi)
+4. Issuer  →  approve_submission()  Setujui hasil kerja
+              ↓
+5. System  →  [otomatis] Cairkan reward ke Solver
+              [otomatis] Terbitkan Soulbound Badge ke wallet Solver
+```
+
+---
+
+## Fungsi Kontrak
+
+| Fungsi | Parameter | Deskripsi |
+| :--- | :--- | :--- |
+| `create_bounty` | issuer, title, description, category, reward | Buat bounty baru, kunci dana escrow |
+| `get_bounties` | — | Ambil semua bounty yang terdaftar |
+| `get_bounty` | id | Ambil detail satu bounty berdasarkan ID |
+| `submit_work` | solver, bounty_id, proof_url | Kirim bukti hasil kerja |
+| `get_submission` | bounty_id | Lihat submission dari sebuah bounty |
+| `approve_submission` | issuer, bounty_id | Setujui submission → cairkan reward + mint badge |
+| `get_badges` | owner | Lihat semua Soulbound Badge milik seorang developer |
+
+---
+
+## Struktur Data
+
+### `Bounty`
+```rust
+pub struct Bounty {
+    pub id: u64,
+    pub title: String,
+    pub description: String,
+    pub category: String,   // mis. "Frontend", "Backend", "DevOps"
+    pub reward: i128,       // dalam stroops (unit terkecil Stellar)
+    pub issuer: Address,
+    pub status: BountyStatus, // Open | Completed
+}
+```
+
+### `Submission`
+```rust
+pub struct Submission {
+    pub bounty_id: u64,
+    pub solver: Address,
+    pub proof_url: String, // tautan repositori / dokumentasi / demo
+}
+```
+
+### `Badge` (Soulbound)
+```rust
+pub struct Badge {
+    pub id: u64,
+    pub bounty_id: u64,
+    pub title: String,
+    pub category: String,
+    pub issued_at: u64, // ledger timestamp
+}
+```
+
+---
+
+## Memulai
+
+### Persyaratan
+- Rust & Cargo
 - Soroban SDK
-- Rust programming language
-- Stellar blockchain network
+- Stellar CLI
 
-## Getting Started
+### Build Kontrak
+```bash
+stellar contract build
+```
 
-Deploy the smart contract to Stellar's Soroban network and interact with it using the three main functions:
+### Jalankan Test
+```bash
+cargo test
+```
 
-- `create_note()` - Create a new note with a title and content
-- `get_notes()` - Retrieve all stored notes from the contract
-- `delete_note()` - Remove a specific note by its ID
+### Deploy ke Testnet
+```bash
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/bounty_hunter.wasm \
+  --network testnet \
+  --source <YOUR_SECRET_KEY>
+```
 
 ---
 
-**Stellar Notes DApp** - Securing Your Thoughts on the Blockchain
+## Nilai Strategis
+
+Semakin banyak bounty yang diselesaikan seorang developer di Bounty Hunter, semakin kuat kredibilitas mereka karena setiap pencapaian didukung oleh **bukti kerja nyata** yang tercatat secara permanen dan transparan di blockchain Stellar — tidak bisa dipalsukan, tidak bisa dihapus.
+
+---
+
+## Persyaratan Teknis
+
+- Soroban SDK `v25`
+- Rust (target: `wasm32v1-none`)
+- Stellar Blockchain Network
+
+---
+
+**Bounty Hunter** - Membuktikan Keahlian Melalui Bukti Kerja Nyata di Blockchain
