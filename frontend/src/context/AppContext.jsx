@@ -1,11 +1,25 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    useCallback,
+} from "react";
+import {
+    connectFreighter,
+    getActiveAddress,
+    isFreighterInstalled,
+    FreighterError,
+} from "../stellar/freighter";
 
 const AppContext = createContext(null);
 
+// ── Seed addresses ───────────────────────────────────────────────
 const ADDR_ALICE = "GBWHTX2JY3B5G5RLZPNOWV6QNQJYQMWT3CXFCV4WUQY7AYHEPZNYX2";
 const ADDR_BOB = "GCXYZ9KQWERTYUIOPLKJHGFDSAZXCVBNM1234567890QWERTYUIOPAS";
 const ADDR_CAROL = "GDABC7LMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXY";
 
+// ── Seed data ────────────────────────────────────────────────────
 const SEED_BOUNTIES = [
     {
         id: 1,
@@ -95,94 +109,162 @@ const SEED_BADGES = {
     ],
 };
 
-function generateAddress() {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let addr = "G";
-    for (let i = 0; i < 55; i++) {
-        addr += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return addr;
-}
-
+// ── Provider ─────────────────────────────────────────────────────
 export function AppProvider({ children }) {
+    // Wallet state
     const [wallet, setWallet] = useState(null);
+    const [walletLoading, setWalletLoading] = useState(true); // true while checking on mount
+    const [walletError, setWalletError] = useState(null); // FreighterError | null
+    const [freighterReady, setFreighterReady] = useState(false); // extension detected
+
+    // App state (will be replaced by on-chain reads in layer 3 & 4)
     const [bounties, setBounties] = useState(SEED_BOUNTIES);
     const [submissions, setSubmissions] = useState(SEED_SUBMISSIONS);
     const [badges, setBadges] = useState(SEED_BADGES);
     const [nextBountyId, setNextBountyId] = useState(7);
     const [nextBadgeId, setNextBadgeId] = useState(2);
 
+    // ── On mount: detect Freighter & restore session ──────────────
     useEffect(() => {
-        const saved = localStorage.getItem("bh_wallet");
-        if (saved) setWallet(saved);
+        async function init() {
+            setWalletLoading(true);
+            try {
+                const installed = await isFreighterInstalled();
+                setFreighterReady(installed);
+
+                if (installed) {
+                    // Silently restore previous session if permission still granted
+                    const addr = await getActiveAddress();
+                    if (addr) {
+                        setWallet(addr);
+                        localStorage.setItem("bh_wallet", addr);
+                    } else {
+                        // No active session — check if we had one cached
+                        // (user may have disconnected Freighter externally)
+                        const cached = localStorage.getItem("bh_wallet");
+                        if (cached) {
+                            // Permission revoked — clear stale cache
+                            localStorage.removeItem("bh_wallet");
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[AppContext] init error:", err);
+            } finally {
+                setWalletLoading(false);
+            }
+        }
+
+        init();
     }, []);
 
-    const connectWallet = () => {
-        const addr = generateAddress();
-        localStorage.setItem("bh_wallet", addr);
-        setWallet(addr);
-    };
+    // ── Wallet actions ────────────────────────────────────────────
+    const connectWallet = useCallback(async () => {
+        setWalletError(null);
+        setWalletLoading(true);
+        try {
+            const addr = await connectFreighter();
+            setWallet(addr);
+            localStorage.setItem("bh_wallet", addr);
+        } catch (err) {
+            if (err instanceof FreighterError) {
+                setWalletError(err);
+            } else {
+                setWalletError(
+                    new FreighterError(
+                        "UNKNOWN",
+                        "Terjadi kesalahan tak terduga saat menghubungkan wallet.",
+                    ),
+                );
+            }
+        } finally {
+            setWalletLoading(false);
+        }
+    }, []);
 
-    const disconnectWallet = () => {
-        localStorage.removeItem("bh_wallet");
+    const disconnectWallet = useCallback(() => {
         setWallet(null);
-    };
+        setWalletError(null);
+        localStorage.removeItem("bh_wallet");
+    }, []);
 
-    const createBounty = ({ title, description, category, reward }) => {
-        const bounty = {
-            id: nextBountyId,
-            title,
-            description,
-            category,
-            reward: Number(reward),
-            issuer: wallet,
-            status: "Open",
-            createdAt: Date.now(),
-        };
-        setBounties((prev) => [bounty, ...prev]);
-        setNextBountyId((prev) => prev + 1);
-        return bounty.id;
-    };
+    const clearWalletError = useCallback(() => setWalletError(null), []);
 
-    const submitWork = ({ bounty_id, proof_url }) => {
-        setSubmissions((prev) => ({
-            ...prev,
-            [bounty_id]: { bounty_id, solver: wallet, proof_url },
-        }));
-    };
+    // ── Bounty actions (local state — replaced in layer 3) ────────
+    const createBounty = useCallback(
+        ({ title, description, category, reward }) => {
+            const bounty = {
+                id: nextBountyId,
+                title,
+                description,
+                category,
+                reward: Number(reward),
+                issuer: wallet,
+                status: "Open",
+                createdAt: Date.now(),
+            };
+            setBounties((prev) => [bounty, ...prev]);
+            setNextBountyId((prev) => prev + 1);
+            return bounty.id;
+        },
+        [nextBountyId, wallet],
+    );
 
-    const approveSubmission = (bounty_id) => {
-        const bounty = bounties.find((b) => b.id === bounty_id);
-        const submission = submissions[bounty_id];
-        if (!bounty || !submission) return;
+    const submitWork = useCallback(
+        ({ bounty_id, proof_url }) => {
+            setSubmissions((prev) => ({
+                ...prev,
+                [bounty_id]: { bounty_id, solver: wallet, proof_url },
+            }));
+        },
+        [wallet],
+    );
 
-        setBounties((prev) =>
-            prev.map((b) =>
-                b.id === bounty_id ? { ...b, status: "Completed" } : b,
-            ),
-        );
+    const approveSubmission = useCallback(
+        (bounty_id) => {
+            const bounty = bounties.find((b) => b.id === bounty_id);
+            const submission = submissions[bounty_id];
+            if (!bounty || !submission) return;
 
-        const badge = {
-            id: nextBadgeId,
-            bounty_id,
-            title: bounty.title,
-            category: bounty.category,
-            issued_at: Date.now(),
-        };
+            setBounties((prev) =>
+                prev.map((b) =>
+                    b.id === bounty_id ? { ...b, status: "Completed" } : b,
+                ),
+            );
 
-        setBadges((prev) => ({
-            ...prev,
-            [submission.solver]: [...(prev[submission.solver] || []), badge],
-        }));
-        setNextBadgeId((prev) => prev + 1);
-    };
+            const badge = {
+                id: nextBadgeId,
+                bounty_id,
+                title: bounty.title,
+                category: bounty.category,
+                issued_at: Date.now(),
+            };
 
+            setBadges((prev) => ({
+                ...prev,
+                [submission.solver]: [
+                    ...(prev[submission.solver] ?? []),
+                    badge,
+                ],
+            }));
+            setNextBadgeId((prev) => prev + 1);
+        },
+        [bounties, submissions, nextBadgeId],
+    );
+
+    // ── Context value ─────────────────────────────────────────────
     return (
         <AppContext.Provider
             value={{
+                // wallet
                 wallet,
+                walletLoading,
+                walletError,
+                freighterReady,
                 connectWallet,
                 disconnectWallet,
+                clearWalletError,
+                // data
                 bounties,
                 createBounty,
                 submissions,
