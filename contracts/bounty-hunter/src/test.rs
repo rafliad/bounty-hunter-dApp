@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger as _}, Address, Env, String};
 
 // ============================================================
 // HELPER
@@ -10,6 +10,11 @@ use soroban_sdk::{testutils::Address as _, Address, Env, String};
 fn setup() -> (Env, BountyHunterContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
+    // Set ledger state agar persistent storage TTL berfungsi saat pengujian
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 100;
+        li.timestamp = 1_700_000_000;
+    });
     let contract_id = env.register(BountyHunterContract, ());
     let client = BountyHunterContractClient::new(&env, &contract_id);
     (env, client)
@@ -119,6 +124,7 @@ fn test_submit_work_success() {
         &300,
     );
 
+    // client.submit_work mengembalikan String langsung (Soroban client auto-unwrap Ok)
     let result = client.submit_work(
         &solver,
         &id,
@@ -127,10 +133,7 @@ fn test_submit_work_success() {
 
     assert_eq!(
         result,
-        String::from_str(
-            &env,
-            "Submission berhasil dikirim! Menunggu review dari Issuer"
-        )
+        String::from_str(&env, "Submission berhasil dikirim! Menunggu review dari Issuer")
     );
 }
 
@@ -139,7 +142,8 @@ fn test_submit_work_bounty_not_found() {
     let (env, client) = setup();
     let solver = Address::generate(&env);
 
-    let result = client.submit_work(
+    // try_submit_work mengembalikan Result — digunakan untuk menguji kasus error
+    let result = client.try_submit_work(
         &solver,
         &999,
         &String::from_str(&env, "https://github.com/dev/repo"),
@@ -147,7 +151,7 @@ fn test_submit_work_bounty_not_found() {
 
     assert_eq!(
         result,
-        String::from_str(&env, "Error: Bounty tidak ditemukan")
+        Err(Ok(ContractError::BountyNotFound))
     );
 }
 
@@ -254,6 +258,7 @@ fn test_approve_submission_success() {
         &String::from_str(&env, "https://github.com/dev/api"),
     );
 
+    // client.approve_submission auto-unwrap Ok → langsung mengembalikan String
     let result = client.approve_submission(&issuer, &id);
 
     assert_eq!(
@@ -348,12 +353,9 @@ fn test_approve_submission_wrong_issuer() {
     );
 
     // Attacker mencoba approve bounty milik orang lain
-    let result = client.approve_submission(&attacker, &id);
+    let result = client.try_approve_submission(&attacker, &id);
 
-    assert_eq!(
-        result,
-        String::from_str(&env, "Error: Anda bukan Issuer dari bounty ini")
-    );
+    assert_eq!(result, Err(Ok(ContractError::NotIssuer)));
 }
 
 #[test]
@@ -370,12 +372,9 @@ fn test_approve_submission_no_submission_yet() {
     );
 
     // Tidak ada submission, langsung approve
-    let result = client.approve_submission(&issuer, &id);
+    let result = client.try_approve_submission(&issuer, &id);
 
-    assert_eq!(
-        result,
-        String::from_str(&env, "Error: Belum ada submission untuk bounty ini")
-    );
+    assert_eq!(result, Err(Ok(ContractError::NoSubmission)));
 }
 
 #[test]
@@ -383,12 +382,9 @@ fn test_approve_submission_bounty_not_found() {
     let (env, client) = setup();
     let issuer = Address::generate(&env);
 
-    let result = client.approve_submission(&issuer, &999);
+    let result = client.try_approve_submission(&issuer, &999);
 
-    assert_eq!(
-        result,
-        String::from_str(&env, "Error: Bounty tidak ditemukan")
-    );
+    assert_eq!(result, Err(Ok(ContractError::BountyNotFound)));
 }
 
 #[test]
@@ -415,11 +411,8 @@ fn test_cannot_approve_already_completed_bounty() {
     client.approve_submission(&issuer, &id);
 
     // Approve kedua — harus gagal karena sudah Completed
-    let result = client.approve_submission(&issuer, &id);
-    assert_eq!(
-        result,
-        String::from_str(&env, "Error: Bounty sudah selesai")
-    );
+    let result = client.try_approve_submission(&issuer, &id);
+    assert_eq!(result, Err(Ok(ContractError::AlreadyCompleted)));
 }
 
 #[test]
@@ -446,16 +439,13 @@ fn test_cannot_submit_to_completed_bounty() {
     client.approve_submission(&issuer, &id);
 
     // Solver lain mencoba submit ke bounty yang sudah selesai
-    let result = client.submit_work(
+    let result = client.try_submit_work(
         &solver2,
         &id,
         &String::from_str(&env, "https://github.com/solver2/fix"),
     );
 
-    assert_eq!(
-        result,
-        String::from_str(&env, "Error: Bounty sudah selesai")
-    );
+    assert_eq!(result, Err(Ok(ContractError::BountyNotOpen)));
 }
 
 // ============================================================

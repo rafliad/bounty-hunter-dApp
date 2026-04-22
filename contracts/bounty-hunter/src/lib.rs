@@ -1,5 +1,14 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracterror, contracttype, Address, Env, String, Vec};
+
+// ============================================================
+// CONSTANTS — TTL (Time To Live) untuk persistent storage
+// ============================================================
+
+/// ~30 hari dalam ledger (rata-rata 5 detik per ledger)
+const LEDGER_30_DAYS: u32 = 518_400;
+/// Ambang batas TTL sebelum diperpanjang (~15 hari)
+const LEDGER_THRESHOLD: u32 = 259_200;
 
 // ============================================================
 // ENUMS
@@ -17,12 +26,30 @@ pub enum BountyStatus {
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
+    // Instance storage — counter ringan, tidak butuh TTL panjang
     BountyCount,
     BadgeCount,
+    // Persistent storage — data utama yang harus bertahan lama
     Bounty(u64),
     BountyList,
     Submission(u64),
     Badges(Address),
+}
+
+/// Kode error kontrak yang dapat diprogram secara programatik oleh klien
+#[contracterror]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ContractError {
+    /// Bounty dengan ID yang diminta tidak ditemukan
+    BountyNotFound = 1,
+    /// Pemanggil bukan Issuer dari bounty ini
+    NotIssuer = 2,
+    /// Bounty sudah berstatus Completed, tidak bisa dimodifikasi
+    AlreadyCompleted = 3,
+    /// Belum ada submission untuk bounty ini
+    NoSubmission = 4,
+    /// Bounty tidak dalam status Open
+    BountyNotOpen = 5,
 }
 
 // ============================================================
@@ -64,6 +91,36 @@ pub struct Badge {
 }
 
 // ============================================================
+// HELPER — persistent storage dengan TTL otomatis
+// ============================================================
+
+/// Membaca data dari persistent storage dan memperpanjang TTL-nya jika perlu
+fn get_persistent<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    key: &DataKey,
+) -> Option<V> {
+    let storage = env.storage().persistent();
+    if storage.has(key) {
+        storage.extend_ttl(key, LEDGER_THRESHOLD, LEDGER_30_DAYS);
+        storage.get(key)
+    } else {
+        None
+    }
+}
+
+/// Menyimpan data ke persistent storage dan menetapkan TTL awal
+fn set_persistent<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    key: &DataKey,
+    value: &V,
+) {
+    env.storage().persistent().set(key, value);
+    env.storage()
+        .persistent()
+        .extend_ttl(key, LEDGER_THRESHOLD, LEDGER_30_DAYS);
+}
+
+// ============================================================
 // CONTRACT
 // ============================================================
 
@@ -98,7 +155,7 @@ impl BountyHunterContract {
         // Validasi: issuer harus menandatangani transaksi ini
         issuer.require_auth();
 
-        // Ambil & increment counter bounty
+        // Ambil & increment counter bounty (disimpan di instance storage)
         let mut count: u64 = env
             .storage()
             .instance()
@@ -117,21 +174,16 @@ impl BountyHunterContract {
             status: BountyStatus::Open,
         };
 
-        // Simpan bounty secara individual berdasarkan ID
-        env.storage()
-            .instance()
-            .set(&DataKey::Bounty(count), &bounty);
+        // Simpan bounty secara individual ke persistent storage
+        set_persistent(&env, &DataKey::Bounty(count), &bounty);
 
-        // Tambahkan ID ke daftar semua bounty
-        let mut list: Vec<u64> = env
-            .storage()
-            .instance()
-            .get(&DataKey::BountyList)
+        // Tambahkan ID ke daftar semua bounty (persistent storage)
+        let mut list: Vec<u64> = get_persistent(&env, &DataKey::BountyList)
             .unwrap_or(Vec::new(&env));
         list.push_back(count);
+        set_persistent(&env, &DataKey::BountyList, &list);
 
-        // Simpan daftar & counter yang sudah diperbarui
-        env.storage().instance().set(&DataKey::BountyList, &list);
+        // Simpan counter yang sudah diperbarui (instance storage)
         env.storage().instance().set(&DataKey::BountyCount, &count);
 
         count
@@ -139,16 +191,13 @@ impl BountyHunterContract {
 
     /// Mengambil semua bounty yang terdaftar di platform
     pub fn get_bounties(env: Env) -> Vec<Bounty> {
-        let list: Vec<u64> = env
-            .storage()
-            .instance()
-            .get(&DataKey::BountyList)
+        let list: Vec<u64> = get_persistent(&env, &DataKey::BountyList)
             .unwrap_or(Vec::new(&env));
 
         let mut bounties = Vec::new(&env);
         for i in 0..list.len() {
             let id = list.get(i).unwrap();
-            let bounty: Option<Bounty> = env.storage().instance().get(&DataKey::Bounty(id));
+            let bounty: Option<Bounty> = get_persistent(&env, &DataKey::Bounty(id));
             if let Some(b) = bounty {
                 bounties.push_back(b);
             }
@@ -162,7 +211,7 @@ impl BountyHunterContract {
     /// # Returns
     /// `Some(Bounty)` jika ditemukan, `None` jika tidak ada
     pub fn get_bounty(env: Env, id: u64) -> Option<Bounty> {
-        env.storage().instance().get(&DataKey::Bounty(id))
+        get_persistent(&env, &DataKey::Bounty(id))
     }
 
     // ----------------------------------------------------------
@@ -175,37 +224,40 @@ impl BountyHunterContract {
     /// * `solver`     - Alamat developer yang mengerjakan tugas
     /// * `bounty_id`  - ID bounty yang dikerjakan
     /// * `proof_url`  - Tautan bukti kerja (repository, dokumentasi, demo, dll)
-    pub fn submit_work(env: Env, solver: Address, bounty_id: u64, proof_url: String) -> String {
+    ///
+    /// # Errors
+    /// * `ContractError::BountyNotFound` - Bounty dengan ID ini tidak ada
+    /// * `ContractError::BountyNotOpen`  - Bounty sudah Completed
+    pub fn submit_work(
+        env: Env,
+        solver: Address,
+        bounty_id: u64,
+        proof_url: String,
+    ) -> Result<String, ContractError> {
         // Validasi: solver harus menandatangani transaksi ini
         solver.require_auth();
 
         // Validasi: bounty harus ada
-        let bounty: Option<Bounty> = env.storage().instance().get(&DataKey::Bounty(bounty_id));
-        if bounty.is_none() {
-            return String::from_str(&env, "Error: Bounty tidak ditemukan");
-        }
+        let bounty: Bounty = get_persistent(&env, &DataKey::Bounty(bounty_id))
+            .ok_or(ContractError::BountyNotFound)?;
 
         // Validasi: bounty harus masih berstatus Open
-        let bounty = bounty.unwrap();
         if bounty.status != BountyStatus::Open {
-            return String::from_str(&env, "Error: Bounty sudah selesai");
+            return Err(ContractError::BountyNotOpen);
         }
 
-        // Buat & simpan submission
+        // Buat & simpan submission ke persistent storage
         let submission = Submission {
             bounty_id,
             solver,
             proof_url,
         };
+        set_persistent(&env, &DataKey::Submission(bounty_id), &submission);
 
-        env.storage()
-            .instance()
-            .set(&DataKey::Submission(bounty_id), &submission);
-
-        String::from_str(
+        Ok(String::from_str(
             &env,
             "Submission berhasil dikirim! Menunggu review dari Issuer",
-        )
+        ))
     }
 
     /// Mengambil data submission dari sebuah bounty
@@ -213,9 +265,7 @@ impl BountyHunterContract {
     /// # Returns
     /// `Some(Submission)` jika ada, `None` jika belum ada submission
     pub fn get_submission(env: Env, bounty_id: u64) -> Option<Submission> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Submission(bounty_id))
+        get_persistent(&env, &DataKey::Submission(bounty_id))
     }
 
     /// Issuer menyetujui submission: reward dicairkan ke Solver & Soulbound Badge diterbitkan
@@ -223,52 +273,51 @@ impl BountyHunterContract {
     /// # Arguments
     /// * `issuer`    - Alamat pemberi tugas (harus menandatangani & harus pemilik bounty)
     /// * `bounty_id` - ID bounty yang akan disetujui
-    pub fn approve_submission(env: Env, issuer: Address, bounty_id: u64) -> String {
+    ///
+    /// # Errors
+    /// * `ContractError::BountyNotFound`  - Bounty tidak ditemukan
+    /// * `ContractError::NotIssuer`       - Pemanggil bukan pemilik bounty
+    /// * `ContractError::AlreadyCompleted`- Bounty sudah selesai
+    /// * `ContractError::NoSubmission`    - Belum ada submission
+    pub fn approve_submission(
+        env: Env,
+        issuer: Address,
+        bounty_id: u64,
+    ) -> Result<String, ContractError> {
         // Validasi: issuer harus menandatangani transaksi ini
         issuer.require_auth();
 
         // Ambil bounty — validasi keberadaannya
-        let bounty: Option<Bounty> = env.storage().instance().get(&DataKey::Bounty(bounty_id));
-        if bounty.is_none() {
-            return String::from_str(&env, "Error: Bounty tidak ditemukan");
-        }
-        let mut bounty = bounty.unwrap();
+        let mut bounty: Bounty = get_persistent(&env, &DataKey::Bounty(bounty_id))
+            .ok_or(ContractError::BountyNotFound)?;
 
         // Validasi: hanya issuer pemilik bounty yang boleh approve
         if bounty.issuer != issuer {
-            return String::from_str(&env, "Error: Anda bukan Issuer dari bounty ini");
+            return Err(ContractError::NotIssuer);
         }
 
         // Validasi: bounty harus masih Open
         if bounty.status != BountyStatus::Open {
-            return String::from_str(&env, "Error: Bounty sudah selesai");
+            return Err(ContractError::AlreadyCompleted);
         }
 
         // Ambil submission — validasi keberadaannya
-        let submission: Option<Submission> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Submission(bounty_id));
-        if submission.is_none() {
-            return String::from_str(&env, "Error: Belum ada submission untuk bounty ini");
-        }
-        let submission = submission.unwrap();
+        let submission: Submission = get_persistent(&env, &DataKey::Submission(bounty_id))
+            .ok_or(ContractError::NoSubmission)?;
 
         // Simpan judul & kategori sebelum bounty diupdate
         let bounty_title = bounty.title.clone();
         let bounty_category = bounty.category.clone();
 
-        // Update status bounty → Completed
+        // Update status bounty → Completed, simpan kembali ke persistent storage
         bounty.status = BountyStatus::Completed;
-        env.storage()
-            .instance()
-            .set(&DataKey::Bounty(bounty_id), &bounty);
+        set_persistent(&env, &DataKey::Bounty(bounty_id), &bounty);
 
         // -------------------------------------------------------
         // C. SISTEM REPUTASI — Terbitkan Soulbound Badge ke Solver
         // -------------------------------------------------------
 
-        // Increment counter badge
+        // Increment counter badge (disimpan di instance storage)
         let mut badge_count: u64 = env
             .storage()
             .instance()
@@ -285,25 +334,20 @@ impl BountyHunterContract {
             issued_at: env.ledger().timestamp(),
         };
 
-        // Tambahkan badge ke koleksi milik solver
-        let mut badges: Vec<Badge> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Badges(submission.solver.clone()))
+        // Tambahkan badge ke koleksi milik solver (persistent storage)
+        let mut badges: Vec<Badge> = get_persistent(&env, &DataKey::Badges(submission.solver.clone()))
             .unwrap_or(Vec::new(&env));
         badges.push_back(badge);
 
-        env.storage()
-            .instance()
-            .set(&DataKey::Badges(submission.solver), &badges);
+        set_persistent(&env, &DataKey::Badges(submission.solver), &badges);
         env.storage()
             .instance()
             .set(&DataKey::BadgeCount, &badge_count);
 
-        String::from_str(
+        Ok(String::from_str(
             &env,
             "Submission disetujui! Reward dicairkan & Soulbound Badge diterbitkan",
-        )
+        ))
     }
 
     // ----------------------------------------------------------
@@ -318,9 +362,7 @@ impl BountyHunterContract {
     /// # Returns
     /// Daftar semua badge yang dimiliki developer tersebut
     pub fn get_badges(env: Env, owner: Address) -> Vec<Badge> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Badges(owner))
+        get_persistent(&env, &DataKey::Badges(owner))
             .unwrap_or(Vec::new(&env))
     }
 }
