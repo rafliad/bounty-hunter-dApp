@@ -26,10 +26,14 @@ export default function SubmitWorkModal({ bounty, onClose }) {
         if (err) { setError(err); return; }
         setError("");
         setLoading(true);
-        await new Promise((r) => setTimeout(r, 700));
-        submitWork({ bounty_id: bounty.id, proof_url: proofUrl.trim() });
-        setLoading(false);
-        setDone(true);
+        try {
+            await submitWork({ bounty_id: bounty.id, proof_url: proofUrl.trim() });
+            setDone(true);
+        } catch (err) {
+            setError(err?.message ?? "Gagal mengirim submission. Coba lagi.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

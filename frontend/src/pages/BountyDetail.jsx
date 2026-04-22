@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     ArrowLeft,
     Zap,
@@ -44,11 +44,17 @@ function timeAgo(ts) {
 export default function BountyDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { bounties, wallet, submissions, approveSubmission, badges } = useApp();
+    const { bounties, wallet, submissions, approveSubmission, badges, loadSubmission } = useApp();
 
-    const [showSubmit, setShowSubmit]     = useState(false);
-    const [approving, setApproving]       = useState(false);
+    const [showSubmit, setShowSubmit]         = useState(false);
+    const [approving, setApproving]           = useState(false);
     const [approveSuccess, setApproveSuccess] = useState(false);
+    const [approveError, setApproveError]     = useState("");
+
+    // Task 3.4: load submission from chain when this bounty page opens
+    useEffect(() => {
+        if (id) loadSubmission(Number(id));
+    }, [id, loadSubmission]);
 
     const bounty     = bounties.find((b) => b.id === Number(id));
     const submission = submissions[Number(id)];
@@ -84,10 +90,15 @@ export default function BountyDetail() {
 
     const handleApprove = async () => {
         setApproving(true);
-        await new Promise((r) => setTimeout(r, 800));
-        approveSubmission(bounty.id);
-        setApproving(false);
-        setApproveSuccess(true);
+        setApproveError("");
+        try {
+            await approveSubmission(bounty.id);
+            setApproveSuccess(true);
+        } catch (err) {
+            setApproveError(err?.message ?? "Gagal approve. Coba lagi.");
+        } finally {
+            setApproving(false);
+        }
     };
 
     return (
@@ -301,7 +312,7 @@ export default function BountyDetail() {
                                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                                                     </svg>
-                                                    Memproses...
+                                                    Menandatangani & Mengirim Transaksi...
                                                 </>
                                             ) : (
                                                 <>
@@ -310,6 +321,12 @@ export default function BountyDetail() {
                                                 </>
                                             )}
                                         </button>
+                                        {approveError && (
+                                            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                                                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                                {approveError}
+                                            </div>
+                                        )}
                                     </>
                                 )}
 

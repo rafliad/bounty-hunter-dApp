@@ -50,11 +50,20 @@ export default function CreateBountyModal({ onClose }) {
             return;
         }
         setLoading(true);
-        await new Promise((r) => setTimeout(r, 600)); // simulate tx
-        const id = createBounty(form);
-        setLoading(false);
-        onClose();
-        navigate(`/bounty/${id}`);
+        try {
+            const id = await createBounty(form);
+            onClose();
+            if (id) {
+                navigate(`/bounty/${id}`);
+            } else {
+                navigate("/");
+            }
+        } catch (err) {
+            // txError is set in AppContext, no extra handling needed here
+            console.error("[CreateBountyModal] TX failed:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

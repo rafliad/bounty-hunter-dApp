@@ -11,7 +11,7 @@ import {
     Copy,
     CheckCheck,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const CATEGORY_STYLES = {
     Backend:  { pill: "bg-violet-500/10 text-violet-400 border-violet-500/20", glow: "shadow-violet-500/10" },
@@ -121,10 +121,15 @@ function CopyButton({ text }) {
 
 export default function Profile() {
     const { address: paramAddr } = useParams();
-    const { wallet, badges, bounties, submissions } = useApp();
+    const { wallet, badges, bounties, submissions, loadBadges } = useApp();
 
     /* Resolve which address to show */
     const address = paramAddr ?? wallet;
+
+    // Task 3.5: load badges from chain whenever the displayed address changes
+    useEffect(() => {
+        if (address) loadBadges(address);
+    }, [address, loadBadges]);
 
     /* Not connected and no param */
     if (!address) {

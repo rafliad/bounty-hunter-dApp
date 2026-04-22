@@ -10,121 +10,41 @@ import {
     getActiveAddress,
     isFreighterInstalled,
     FreighterError,
+    signTx,
 } from "../stellar/freighter";
+import {
+    fetchBounties,
+    fetchSubmission,
+    fetchBadges,
+    buildCreateBountyTx,
+    buildSubmitWorkTx,
+    buildApproveSubmissionTx,
+    submitTransaction,
+    ContractCallError,
+} from "../stellar/contract";
+import { scValToNative } from "@stellar/stellar-sdk";
 
 const AppContext = createContext(null);
 
-// ── Seed addresses ───────────────────────────────────────────────
-const ADDR_ALICE = "GBWHTX2JY3B5G5RLZPNOWV6QNQJYQMWT3CXFCV4WUQY7AYHEPZNYX2";
-const ADDR_BOB = "GCXYZ9KQWERTYUIOPLKJHGFDSAZXCVBNM1234567890QWERTYUIOPAS";
-const ADDR_CAROL = "GDABC7LMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXY";
-
-// ── Seed data ────────────────────────────────────────────────────
-const SEED_BOUNTIES = [
-    {
-        id: 1,
-        title: "Fix JWT Authentication Bug",
-        description:
-            "Ada bug pada sistem autentikasi JWT dimana token tidak expire dengan benar setelah logout. Perlu diperbaiki di layer middleware Express.js dan pastikan semua test suite tetap passing setelah perubahan.",
-        category: "Backend",
-        reward: 500,
-        issuer: ADDR_ALICE,
-        status: "Open",
-        createdAt: Date.now() - 86400000 * 2,
-    },
-    {
-        id: 2,
-        title: "Build Responsive Dashboard UI",
-        description:
-            "Buat halaman dashboard yang sepenuhnya responsif menggunakan React dan Tailwind CSS. Harus support tampilan mobile hingga desktop. Komponen yang dibutuhkan: sidebar, topbar, stats card, dan chart placeholder.",
-        category: "Frontend",
-        reward: 300,
-        issuer: ADDR_BOB,
-        status: "Open",
-        createdAt: Date.now() - 86400000 * 1,
-    },
-    {
-        id: 3,
-        title: "Setup CI/CD Pipeline",
-        description:
-            "Konfigurasi GitHub Actions untuk automated testing, linting, dan deployment ke staging environment setiap kali ada push ke branch main. Sertakan badge status di README.",
-        category: "DevOps",
-        reward: 750,
-        issuer: ADDR_ALICE,
-        status: "Completed",
-        createdAt: Date.now() - 86400000 * 5,
-    },
-    {
-        id: 4,
-        title: "Design System Component Library",
-        description:
-            "Buat design system lengkap dengan komponen Button, Input, Modal, Card, Badge, dan Tooltip yang konsisten. Dokumentasikan setiap komponen dengan Storybook.",
-        category: "Design",
-        reward: 400,
-        issuer: ADDR_BOB,
-        status: "Open",
-        createdAt: Date.now() - 86400000 * 3,
-    },
-    {
-        id: 5,
-        title: "Optimize Database Query Performance",
-        description:
-            "Beberapa endpoint API memiliki query N+1 yang membuat response time lambat. Identifikasi semua query bermasalah dan optimasi menggunakan eager loading dan indexing yang tepat.",
-        category: "Backend",
-        reward: 600,
-        issuer: ADDR_CAROL,
-        status: "Open",
-        createdAt: Date.now() - 86400000 * 0.5,
-    },
-    {
-        id: 6,
-        title: "Write E2E Test Suite",
-        description:
-            "Tulis end-to-end test menggunakan Playwright untuk semua user flow utama: register, login, checkout, dan dashboard. Target coverage minimal 80%.",
-        category: "QA",
-        reward: 350,
-        issuer: ADDR_CAROL,
-        status: "Open",
-        createdAt: Date.now() - 86400000 * 4,
-    },
-];
-
-const SEED_SUBMISSIONS = {
-    3: {
-        bounty_id: 3,
-        solver: ADDR_BOB,
-        proof_url: "https://github.com/bobdev/ci-cd-pipeline-setup",
-    },
-};
-
-const SEED_BADGES = {
-    [ADDR_BOB]: [
-        {
-            id: 1,
-            bounty_id: 3,
-            title: "Setup CI/CD Pipeline",
-            category: "DevOps",
-            issued_at: Date.now() - 86400000 * 4,
-        },
-    ],
-};
-
-// ── Provider ─────────────────────────────────────────────────────
+// ── Provider ─────────────────────────────────────────────────
 export function AppProvider({ children }) {
     // Wallet state
     const [wallet, setWallet] = useState(null);
-    const [walletLoading, setWalletLoading] = useState(true); // true while checking on mount
-    const [walletError, setWalletError] = useState(null); // FreighterError | null
-    const [freighterReady, setFreighterReady] = useState(false); // extension detected
+    const [walletLoading, setWalletLoading] = useState(true);
+    const [walletError, setWalletError] = useState(null);
+    const [freighterReady, setFreighterReady] = useState(false);
 
-    // App state (will be replaced by on-chain reads in layer 3 & 4)
-    const [bounties, setBounties] = useState(SEED_BOUNTIES);
-    const [submissions, setSubmissions] = useState(SEED_SUBMISSIONS);
-    const [badges, setBadges] = useState(SEED_BADGES);
-    const [nextBountyId, setNextBountyId] = useState(7);
-    const [nextBadgeId, setNextBadgeId] = useState(2);
+    // On-chain data state
+    const [bounties, setBounties] = useState([]);
+    const [submissions, setSubmissions] = useState({});
+    const [badges, setBadges] = useState({});
 
-    // ── On mount: detect Freighter & restore session ──────────────
+    // Loading / error state
+    const [bountyLoading, setBountyLoading] = useState(true);
+    const [txLoading, setTxLoading] = useState(false);
+    const [txError, setTxError] = useState(null);
+
+    // ── On mount: detect Freighter, restore session, load bounties ──
     useEffect(() => {
         async function init() {
             setWalletLoading(true);
@@ -133,19 +53,13 @@ export function AppProvider({ children }) {
                 setFreighterReady(installed);
 
                 if (installed) {
-                    // Silently restore previous session if permission still granted
                     const addr = await getActiveAddress();
                     if (addr) {
                         setWallet(addr);
                         localStorage.setItem("bh_wallet", addr);
                     } else {
-                        // No active session — check if we had one cached
-                        // (user may have disconnected Freighter externally)
                         const cached = localStorage.getItem("bh_wallet");
-                        if (cached) {
-                            // Permission revoked — clear stale cache
-                            localStorage.removeItem("bh_wallet");
-                        }
+                        if (cached) localStorage.removeItem("bh_wallet");
                     }
                 }
             } catch (err) {
@@ -156,6 +70,45 @@ export function AppProvider({ children }) {
         }
 
         init();
+        loadBounties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Data loaders ─────────────────────────────────────────────
+    const loadBounties = useCallback(async () => {
+        setBountyLoading(true);
+        try {
+            const data = await fetchBounties();
+            setBounties(data);
+        } catch (err) {
+            console.error("[AppContext] loadBounties:", err);
+        } finally {
+            setBountyLoading(false);
+        }
+    }, []);
+
+    /** Fetch submission for a single bounty and cache it in state */
+    const loadSubmission = useCallback(async (bountyId) => {
+        try {
+            const sub = await fetchSubmission(Number(bountyId));
+            setSubmissions((prev) => ({
+                ...prev,
+                [Number(bountyId)]: sub ?? undefined,
+            }));
+        } catch (err) {
+            console.error("[AppContext] loadSubmission:", err);
+        }
+    }, []);
+
+    /** Fetch badges for a given address and cache them in state */
+    const loadBadges = useCallback(async (address) => {
+        if (!address) return;
+        try {
+            const data = await fetchBadges(address);
+            setBadges((prev) => ({ ...prev, [address]: data }));
+        } catch (err) {
+            console.error("[AppContext] loadBadges:", err);
+        }
     }, []);
 
     // ── Wallet actions ────────────────────────────────────────────
@@ -167,16 +120,11 @@ export function AppProvider({ children }) {
             setWallet(addr);
             localStorage.setItem("bh_wallet", addr);
         } catch (err) {
-            if (err instanceof FreighterError) {
-                setWalletError(err);
-            } else {
-                setWalletError(
-                    new FreighterError(
-                        "UNKNOWN",
-                        "Terjadi kesalahan tak terduga saat menghubungkan wallet.",
-                    ),
-                );
-            }
+            setWalletError(
+                err instanceof FreighterError
+                    ? err
+                    : new FreighterError("UNKNOWN", "Terjadi kesalahan tak terduga saat menghubungkan wallet.")
+            );
         } finally {
             setWalletLoading(false);
         }
@@ -189,67 +137,68 @@ export function AppProvider({ children }) {
     }, []);
 
     const clearWalletError = useCallback(() => setWalletError(null), []);
+    const clearTxError = useCallback(() => setTxError(null), []);
 
-    // ── Bounty actions (local state — replaced in layer 3) ────────
+    // ── TX helper ─────────────────────────────────────────────────
+    /** Generic wrapper: build XDR → sign via Freighter → submit → wait */
+    const runTx = useCallback(async (buildFn) => {
+        setTxLoading(true);
+        setTxError(null);
+        try {
+            const xdr = await buildFn();
+            const signedXdr = await signTx(xdr, wallet);
+            return await submitTransaction(signedXdr);
+        } catch (err) {
+            const msg =
+                err instanceof ContractCallError || err instanceof FreighterError
+                    ? err.message
+                    : "Transaksi gagal. Coba lagi.";
+            setTxError(msg);
+            throw err;
+        } finally {
+            setTxLoading(false);
+        }
+    }, [wallet]);
+
+    // ── Bounty actions — Task 3.2 ─────────────────────────────────
     const createBounty = useCallback(
-        ({ title, description, category, reward }) => {
-            const bounty = {
-                id: nextBountyId,
-                title,
-                description,
-                category,
-                reward: Number(reward),
-                issuer: wallet,
-                status: "Open",
-                createdAt: Date.now(),
-            };
-            setBounties((prev) => [bounty, ...prev]);
-            setNextBountyId((prev) => prev + 1);
-            return bounty.id;
-        },
-        [nextBountyId, wallet],
-    );
-
-    const submitWork = useCallback(
-        ({ bounty_id, proof_url }) => {
-            setSubmissions((prev) => ({
-                ...prev,
-                [bounty_id]: { bounty_id, solver: wallet, proof_url },
-            }));
-        },
-        [wallet],
-    );
-
-    const approveSubmission = useCallback(
-        (bounty_id) => {
-            const bounty = bounties.find((b) => b.id === bounty_id);
-            const submission = submissions[bounty_id];
-            if (!bounty || !submission) return;
-
-            setBounties((prev) =>
-                prev.map((b) =>
-                    b.id === bounty_id ? { ...b, status: "Completed" } : b,
-                ),
+        async ({ title, description, category, reward }) => {
+            if (!wallet) throw new Error("Wallet tidak terhubung");
+            const { returnValue } = await runTx(() =>
+                buildCreateBountyTx(wallet, title, description, category, Number(reward))
             );
-
-            const badge = {
-                id: nextBadgeId,
-                bounty_id,
-                title: bounty.title,
-                category: bounty.category,
-                issued_at: Date.now(),
-            };
-
-            setBadges((prev) => ({
-                ...prev,
-                [submission.solver]: [
-                    ...(prev[submission.solver] ?? []),
-                    badge,
-                ],
-            }));
-            setNextBadgeId((prev) => prev + 1);
+            // Parse new bounty ID from contract return value
+            let newId = null;
+            if (returnValue) {
+                try { newId = Number(scValToNative(returnValue)); } catch { /* ignored */ }
+            }
+            await loadBounties();
+            return newId;
         },
-        [bounties, submissions, nextBadgeId],
+        [wallet, runTx, loadBounties]
+    );
+
+    // ── Submit work — Task 3.3 ────────────────────────────────────
+    const submitWork = useCallback(
+        async ({ bounty_id, proof_url }) => {
+            if (!wallet) throw new Error("Wallet tidak terhubung");
+            await runTx(() => buildSubmitWorkTx(wallet, bounty_id, proof_url));
+            await loadSubmission(bounty_id);
+        },
+        [wallet, runTx, loadSubmission]
+    );
+
+    // ── Approve submission — Task 3.4 ─────────────────────────────
+    const approveSubmission = useCallback(
+        async (bounty_id) => {
+            if (!wallet) throw new Error("Wallet tidak terhubung");
+            await runTx(() => buildApproveSubmissionTx(wallet, bounty_id));
+            // Refresh bounty status + solver's badges
+            await loadBounties();
+            const sub = submissions[Number(bounty_id)];
+            if (sub?.solver) await loadBadges(sub.solver);
+        },
+        [wallet, runTx, loadBounties, loadBadges, submissions]
     );
 
     // ── Context value ─────────────────────────────────────────────
@@ -264,13 +213,23 @@ export function AppProvider({ children }) {
                 connectWallet,
                 disconnectWallet,
                 clearWalletError,
-                // data
+                // on-chain data
                 bounties,
-                createBounty,
+                bountyLoading,
                 submissions,
-                submitWork,
                 badges,
+                // tx state
+                txLoading,
+                txError,
+                clearTxError,
+                // write actions
+                createBounty,
+                submitWork,
                 approveSubmission,
+                // loaders (called by pages)
+                loadBounties,
+                loadSubmission,
+                loadBadges,
             }}
         >
             {children}
