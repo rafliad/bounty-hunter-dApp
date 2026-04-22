@@ -62,14 +62,14 @@ Every completed task generates a **Soulbound Badge** — a permanent, non-transf
 
 ## Smart Contract
 
-### Testnet Deployment
+### Mainnet Deployment
 
 | Network | Contract ID |
 | :--- | :--- |
-| Stellar Testnet | `CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K` |
+| Stellar Mainnet | `CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K` |
 
 You can inspect the contract on [Stellar Expert (Mainnet)](https://stellar.expert/explorer/public/tx/f7cb2c4baa6f46a78bc99d6514132822c5cc087e9a465e6350851c73d42ecb27).
-You can inspect the contract on [Stellar Lab (Mainnet)](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K;;).
+You can inspect the contract on [Stellar Lab (Mainnet)](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=Mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K;;).
 
 ### Contract Functions
 
@@ -144,18 +144,18 @@ stellar contract build
 cargo test
 ```
 
-### Deploy to Testnet
+### Deploy to Mainnet
 
 ```bash
 # Generate and fund a deployer keypair
-stellar keys generate deployer --network testnet
-stellar keys fund deployer --network testnet
+stellar keys generate deployer --network Mainnet
+stellar keys fund deployer --network Mainnet
 
 # Deploy — note the contract ID printed in the output
 stellar contract deploy \
   --wasm target/wasm32v1-none/release/bounty_hunter.wasm \
   --source deployer \
-  --network testnet
+  --network Mainnet
 ```
 
 ### Run the Frontend
@@ -166,7 +166,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser. Connect your Freighter wallet set to **Stellar Testnet** to interact with the platform.
+Open [http://localhost:5173](http://localhost:5173) in your browser. Connect your Freighter wallet set to **Stellar Mainnet** to interact with the platform.
 
 ---
 
@@ -201,7 +201,7 @@ stellar-workshop-starter/
 | Layer | Technology |
 | :--- | :--- |
 | Smart Contract | Rust · Soroban SDK `v25` · `wasm32v1-none` |
-| Blockchain | Stellar Network (Testnet) |
+| Blockchain | Stellar Network (Mainnet) |
 | Frontend | React 18 · Vite · Tailwind CSS |
 | Wallet | Freighter (`@stellar/freighter-api`) |
 
