@@ -66,9 +66,10 @@ Every completed task generates a **Soulbound Badge** — a permanent, non-transf
 
 | Network | Contract ID |
 | :--- | :--- |
-| Stellar Testnet | `CAOORSN3XLOHAOBT3KF6GKZR4L6P3HLKDV5F2SAZ5KLNNYQUD2XVFSTZ` |
+| Stellar Testnet | `CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K` |
 
-You can inspect the contract on [Stellar Expert (Testnet)](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org&passphrase=Test%20SDF%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CAOORSN3XLOHAOBT3KF6GKZR4L6P3HLKDV5F2SAZ5KLNNYQUD2XVFSTZ;;).
+You can inspect the contract on [Stellar Expert (Mainnet)](https://stellar.expert/explorer/public/tx/f7cb2c4baa6f46a78bc99d6514132822c5cc087e9a465e6350851c73d42ecb27).
+You can inspect the contract on [Stellar Lab (Mainnet)](https://lab.stellar.org/smart-contracts/contract-explorer?$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&smartContracts$explorer$contractId=CDXBEE2LMGVIE5JMQLMPM7K2BV6IKVFAFR6TJJWAYHNWS2M3ZN5TY63K;;).
 
 ### Contract Functions
 
